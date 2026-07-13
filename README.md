@@ -6,3 +6,8 @@ A fully self-hosted, multi-modal AI engineering platform that parses real-world 
 - Diffusion - SDXL-Turbo
 - Visual-Language Model - Qwen-2.5-VL
 - Image Segmentation - SAM (Segment Anything Model)
+
+## Contributors
+- [@Hamish-MarshallDawson](https://github.com/Hamish-MarshallDawson)
+- [@JakeCallcut](https://github.com/JakeCallcut)
+
