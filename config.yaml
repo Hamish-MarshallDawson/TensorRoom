@@ -1,0 +1,12 @@
+# TensoRoom Configuration file
+
+#Hardware Options
+device: "mps"
+dtype: "float16"
+
+# Diffusion Model Options
+model_id: "stabilityai/sdxl-turbo"
+prompt: "A small town in the Pacific Northwest, with a cozy coffee shop and misty mountains in the background."
+output_dir: "output/output.png"
+steps: 1
+seed: 42
