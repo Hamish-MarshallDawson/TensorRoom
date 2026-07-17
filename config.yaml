@@ -6,7 +6,7 @@ dtype: "float16"
 
 # Diffusion Model Options
 model_id: "stabilityai/sdxl-turbo"
-prompt: "A small town in the Pacific Northwest, with a cozy coffee shop and misty mountains in the background."
-output_dir: "output/output.png"
+prompt: "A cozy modern living room with large windows, and warm lighting. The room is decorated with contemporary furniture and has a comfortable atmosphere."
+output_dir: "data/images/output.png"
 steps: 1
 seed: 42

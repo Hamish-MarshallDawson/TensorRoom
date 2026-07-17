@@ -1,11 +1,9 @@
-from __future__ import annotations
-import argparse
 from pathlib import Path
 import yaml
-from diffusers import DiffusionPipeline
 import torch
+from diffusers import DiffusionPipeline
 
-def load_config() -> dict:
+def load_config():
     with open(Path(__file__).parent.parent.parent / "config.yaml", "r") as f:
         return yaml.safe_load(f)
 
