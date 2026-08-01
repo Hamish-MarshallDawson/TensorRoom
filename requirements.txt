@@ -1,8 +1,11 @@
 streamlit
 torch
 diffusers
-transformers
 accelerate
+transformers==4.35.2
 safetensors
 Pillow
 pyyaml
+opencv-python
+autodistill
+autodistill-grounded-sam

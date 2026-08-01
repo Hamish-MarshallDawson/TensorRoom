@@ -1,6 +1,7 @@
 # TensoRoom Configuration file
 
 #Hardware Options
+#device: "cuda"
 device: "mps"
 dtype: "float16"
 

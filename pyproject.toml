@@ -6,8 +6,9 @@ dependencies = [
     "streamlit",
     "torch",
     "diffusers",
-    "transformers",
+    "transformers==4.35.2",
     "accelerate",
     "safetensors",
     "Pillow",
+    "autodistill-grounded-sam>=0.1.2",
 ]
