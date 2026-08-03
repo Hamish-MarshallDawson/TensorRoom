@@ -11,3 +11,7 @@ prompt: "A cozy modern living room with large windows, and warm lighting. The ro
 output_dir: "data/images/output.png"
 steps: 1
 seed: 42
+
+#Segmentation Model Options
+box_threshold: 0.3
+text_threshold: 0.15
