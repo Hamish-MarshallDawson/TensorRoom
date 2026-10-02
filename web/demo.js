@@ -112,7 +112,7 @@
           const tmp = document.createElement("canvas");
           tmp.width = src.width; tmp.height = src.height;
           const t = tmp.getContext("2d");
-          t.filter = "hue-rotate(160deg) saturate(1.8)";
+          t.filter = "sepia(1) saturate(3) hue-rotate(-12deg) brightness(0.9)";
           t.drawImage(src, 0, 0);
           t.filter = "none";
           t.globalCompositeOperation = "destination-in";

@@ -1,16 +1,17 @@
 <!doctype html>
 <!--
-  TensorRoom mobile web app
-  =========================
+  TensorRoom web app
+  ==================
   The page people open on their phone (or any browser). It is mobile-first:
   every control is at least 44 px, the main action sits in a dock at the
   bottom where thumbs reach, and it works from 320 px wide phones up to
   desktops in either orientation.
 
-  The look follows hamishmarshalldawson.com: white paper and black ink with
-  a single signal blue, Archivo in heavy uppercase for display type,
-  JetBrains Mono for labels, thick ruled borders, hard offset shadows and a
-  status bar along the top.
+  The look is mid-century modern: a warm sepia paper backdrop, espresso ink,
+  orange concentric circles and a dot graphic on the landing view, Fraunces
+  serif headings that gently morph, captioned figures
+  and a stacked step list (a sidebar on desktop, a progress bar on phones).
+  Dark mode is the same room at night, lit by an orange lamp.
 
   Served by server.py at "/". Add ?demo to the address to try the whole flow
   with fake results and no GPU (handy for UI work: see demo.js).
@@ -19,8 +20,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3e9d8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1410" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="TensorRoom">
@@ -29,117 +30,196 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="../public/logo.png">
   <link rel="apple-touch-icon" href="../public/logo.png">
-  <!-- Same typefaces as hamishmarshalldawson.com. Without internet the page falls back to Helvetica/Arial and the system monospace. -->
+  <!-- Without internet the page falls back to Georgia and the system sans-serif. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,400&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..800,0..100,0..1;1,9..144,300..800,0..100,0..1&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- Top status bar -->
-  <header class="bar">
-    <div class="bar__brand"><img src="../public/logo.png" alt="" width="28" height="28"><span>TR</span></div>
-    <div class="bar__step"><span class="bar__index" id="stepIndex">01</span><span id="stepName">Capture</span></div>
-    <div class="bar__count mono" id="stepCount">01/04</div>
-    <div class="bar__status mono" id="linkStatus"><span class="led" aria-hidden="true"></span><span id="linkText">Linking</span></div>
-  </header>
+  <!-- Two-tone image filters: shadows become the first colour, highlights the second -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="duoDay" color-interpolation-filters="sRGB">
+        <feColorMatrix type="saturate" values="0"/>
+        <feComponentTransfer><feFuncR type="table" tableValues="0.612 0.973"/><feFuncG type="table" tableValues="0.184 0.902"/><feFuncB type="table" tableValues="0.110 0.784"/></feComponentTransfer>
+      </filter>
+      <filter id="duoNight" color-interpolation-filters="sRGB">
+        <feColorMatrix type="saturate" values="0"/>
+        <feComponentTransfer><feFuncR type="table" tableValues="0.165 0.953"/><feFuncG type="table" tableValues="0.071 0.604"/><feFuncB type="table" tableValues="0.039 0.290"/></feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
 
-  <!-- Info strip, like the site's Designation / Status / Current post row -->
-  <div class="strip mono" aria-live="polite">
-    <div><span class="strip__k">Session</span><span id="sessionId">—</span></div>
-    <div><span class="strip__k">VRAM</span><span id="vram">—</span></div>
-    <div class="strip__wide"><span class="strip__k">Model</span><span>Qwen-Image-2.1 · <span id="quant">FP8</span></span></div>
-  </div>
+  <!-- Brand, steps and worker status: a sidebar on desktop, a sticky top bar on phones -->
+  <aside class="rail">
+    <div class="rail__top">
+      <a class="brand" href="./" id="brand" aria-label="TensorRoom: back to the start">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Tensor<em>Room</em></span>
+      </a>
+      <p class="rail__now" aria-live="polite"><span id="stepIndex">01</span><span id="stepName">Your room</span></p>
+      <p class="status" id="linkStatus"><span class="led" aria-hidden="true"></span><span id="linkText">Linking</span></p>
+    </div>
+
+    <p class="rail__lede">Redesign a room from a photo, on your own GPU.</p>
+
+    <nav aria-label="Steps">
+      <ol class="steps" id="steps">
+        <li><button class="step" type="button" data-step="1"><span class="step__n">01</span><span class="step__name">Your room</span></button></li>
+        <li><button class="step" type="button" data-step="2"><span class="step__n">02</span><span class="step__name">What to change</span></button></li>
+        <li><button class="step" type="button" data-step="3"><span class="step__n">03</span><span class="step__name">Choose <span class="amp">&amp;</span> describe</span></button></li>
+        <li><button class="step" type="button" data-step="4"><span class="step__n">04</span><span class="step__name">The result</span></button></li>
+      </ol>
+    </nav>
+
+    <dl class="facts" aria-live="polite">
+      <div><dt>Model</dt><dd>Qwen-Image-2.1 · <span data-field="quant">FP8</span></dd></div>
+      <div><dt>VRAM</dt><dd data-field="vram">—</dd></div>
+      <div><dt>Session</dt><dd data-field="session">—</dd></div>
+    </dl>
+  </aside>
 
   <main id="main">
-    <section class="hero" aria-label="TensorRoom">
-      <h1 class="display"><span>Tensor</span><span class="outline">Room</span></h1>
-      <p class="hero__sub mono">Photograph a room · pick what changes · see it redesigned</p>
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero__copy">
+        <p class="eyebrow">Interior redesign · local AI</p>
+        <h1 class="display" id="heroTitle">Tensor<em>Room</em></h1>
+        <p class="hero__sub">Photograph a room, say what should change and see it redesigned, All on your own GPU.</p>
+        <ol class="hero__stack" aria-label="How it works">
+          <li>Photo.</li><li>Pick.</li><li>Redraw.</li>
+        </ol>
+      </div>
+      <div class="hero__art" aria-hidden="true">
+        <div class="rings"></div>
+        <svg class="dots" viewBox="0 0 120 120">
+          <defs>
+            <pattern id="dotGrid" width="6" height="6" patternUnits="userSpaceOnUse">
+              <circle cx="3" cy="3" r="2" fill="currentColor"/>
+            </pattern>
+          </defs>
+          <!-- A mid-century lounge chair drawn in dots: back, seat and splayed legs -->
+          <path fill="url(#dotGrid)" d="M18 22 Q24 14 34 18 L52 62 Q54 68 60 68 L96 66 Q106 66 106 74 Q106 82 96 82 L50 84 Q40 84 36 76 Z"/>
+          <path fill="url(#dotGrid)" d="M46 84 L56 84 L44 112 L36 112 Z M86 82 L96 82 L106 112 L98 112 Z"/>
+        </svg>
+        <figure class="arch duotone"><img src="../public/room.jpg" alt="" width="960" height="640"></figure>
+        <span class="sun"></span>
+      </div>
     </section>
 
     <!-- 01 Capture -->
-    <section class="panel" id="secCapture" data-step="1">
-      <h2 class="panel__head"><span class="tag">01</span>Your room</h2>
+    <section class="panel" id="secCapture" data-step="1" aria-labelledby="h1">
+      <header class="panel__head">
+        <span class="panel__n">01</span>
+        <h2 class="panel__title" id="h1">Your room</h2>
+        <p class="panel__lede">Start with a photo, taken from where you would normally stand.</p>
+      </header>
       <div class="capture" id="captureButtons">
-        <label class="tile tile--ink">
+        <label class="tile tile--accent">
           <input type="file" accept="image/*" capture="environment" id="fileCamera" class="sr-only">
-          <span class="tile__icon" aria-hidden="true">◉</span>
-          <span class="tile__label">Take photo</span>
-          <span class="tile__hint mono">Opens camera</span>
+          <span class="tile__icon tile__icon--lens" aria-hidden="true"></span>
+          <span class="tile__label">Take a photo</span>
+          <span class="tile__hint">Opens the camera</span>
         </label>
         <label class="tile">
           <input type="file" accept="image/*" id="fileLibrary" class="sr-only">
-          <span class="tile__icon" aria-hidden="true">▤</span>
-          <span class="tile__label">Choose photo</span>
-          <span class="tile__hint mono">From library</span>
+          <span class="tile__icon tile__icon--arch" aria-hidden="true"></span>
+          <span class="tile__label">Choose a photo</span>
+          <span class="tile__hint">From your library</span>
         </label>
       </div>
-      <figure class="frame" id="photoFrame" hidden>
-        <img id="photoPreview" alt="Your room">
-        <figcaption class="frame__cap mono"><span id="photoMeta">—</span><button class="link mono" id="retake" type="button">Change photo</button></figcaption>
+      <figure class="figure" id="photoFrame" hidden>
+        <div class="figure__img"><img id="photoPreview" alt="Your room"></div>
+        <figcaption class="caption">
+          <span><b>Fig. 01</b> <span id="photoMeta">—</span></span>
+          <button class="link" id="retake" type="button">Change photo</button>
+        </figcaption>
       </figure>
     </section>
 
     <!-- 02 What to change -->
-    <section class="panel" id="secTarget" data-step="2" hidden>
-      <h2 class="panel__head"><span class="tag">02</span>What should change?</h2>
+    <section class="panel" id="secTarget" data-step="2" aria-labelledby="h2" hidden>
+      <header class="panel__head">
+        <span class="panel__n">02</span>
+        <h2 class="panel__title" id="h2">What should change?</h2>
+        <p class="panel__lede">Name the pieces, or tap a suggestion. Separate several with commas.</p>
+      </header>
       <label class="field">
-        <span class="field__label mono">Objects</span>
+        <span class="field__label">Objects</span>
         <input type="text" id="terms" placeholder="sofa, coffee table" autocomplete="off" autocapitalize="none" enterkeyhint="search">
       </label>
       <div class="chips" id="suggestions" aria-label="Suggestions"></div>
     </section>
 
     <!-- 03 Pick and describe -->
-    <section class="panel" id="secSelect" data-step="3" hidden>
-      <h2 class="panel__head"><span class="tag">03</span>Tap what to change</h2>
-      <div class="stage" id="stage">
-        <img id="stagePhoto" alt="Your room with the objects found highlighted">
-        <canvas id="stageCanvas" aria-hidden="true"></canvas>
+    <section class="panel" id="secSelect" data-step="3" aria-labelledby="h3" hidden>
+      <header class="panel__head">
+        <span class="panel__n">03</span>
+        <h2 class="panel__title" id="h3">Choose <span class="amp">&amp;</span> describe</h2>
+        <p class="panel__lede">Tap the photo or the list to choose pieces, then say what they should become.</p>
+      </header>
+      <figure class="figure figure--stage">
+        <div class="stage" id="stage">
+          <img id="stagePhoto" alt="Your room with the objects found highlighted">
+          <canvas id="stageCanvas" aria-hidden="true"></canvas>
+        </div>
+        <figcaption class="caption"><span><b>Fig. 02</b> <span id="selectCount">0 selected</span></span></figcaption>
+      </figure>
+      <div class="select__side">
+        <ul class="instances" id="instanceList" aria-label="Objects found"></ul>
+        <label class="field">
+          <span class="field__label">Change them to</span>
+          <textarea id="instruction" rows="2" placeholder="a green velvet mid-century sofa" enterkeyhint="done"></textarea>
+        </label>
       </div>
-      <p class="hint mono" id="selectCount">0 selected</p>
-      <ul class="instances" id="instanceList"></ul>
-      <label class="field">
-        <span class="field__label mono">Change them to</span>
-        <textarea id="instruction" rows="2" placeholder="a green velvet mid-century sofa" enterkeyhint="done"></textarea>
-      </label>
     </section>
 
     <!-- 04 Result -->
-    <section class="panel" id="secResult" data-step="4" hidden>
-      <h2 class="panel__head"><span class="tag">04</span>Result</h2>
-      <div class="compare" id="compare">
-        <img id="afterImg" alt="Edited room">
-        <div class="compare__before" id="beforeClip"><img id="beforeImg" alt="Original room"></div>
-        <div class="compare__handle" aria-hidden="true"></div>
-        <span class="compare__tag compare__tag--l mono">Before</span>
-        <span class="compare__tag compare__tag--r mono">After</span>
-        <input type="range" id="compareRange" min="0" max="100" value="50" aria-label="Drag to compare before and after">
-      </div>
-      <p class="hint mono" id="resultMeta">—</p>
-      <button class="link mono" id="startOver" type="button">Start again with a new photo</button>
+    <section class="panel" id="secResult" data-step="4" aria-labelledby="h4" hidden>
+      <header class="panel__head">
+        <span class="panel__n">04</span>
+        <h2 class="panel__title" id="h4">The result</h2>
+        <p class="panel__lede">Drag across the photo to compare before and after.</p>
+      </header>
+      <figure class="figure">
+        <div class="compare" id="compare">
+          <img id="afterImg" alt="Edited room">
+          <div class="compare__before" id="beforeClip"><img id="beforeImg" alt="Original room"></div>
+          <div class="compare__handle" aria-hidden="true"></div>
+          <span class="compare__tag compare__tag--l">Before</span>
+          <span class="compare__tag compare__tag--r">After</span>
+          <input type="range" id="compareRange" min="0" max="100" value="50" aria-label="Drag to compare before and after">
+        </div>
+        <figcaption class="caption">
+          <span><b>Fig. 03</b> <span id="resultMeta">—</span></span>
+          <button class="link" id="startOver" type="button">New photo</button>
+        </figcaption>
+      </figure>
     </section>
 
     <div class="alert" id="alert" role="alert" hidden></div>
+
+    <footer class="foot">
+      <p class="foot__facts"><span>Qwen-Image-2.1 · <span data-field="quant">FP8</span></span><span>VRAM <span data-field="vram">—</span></span></p>
+      <p class="foot__about"><span>TensorRoom · local AI on an RTX 5080</span> <span class="foot__credit"><a href="https://hamishmarshalldawson.com">HMD</a> &amp; <a href="https://www.jakecallcut.dev">JC</a></span></p>
+    </footer>
   </main>
 
   <!-- Thumb-reach action dock -->
-  <nav class="dock" aria-label="Actions">
-    <div class="dock__busy mono" id="busy" hidden>
-      <span id="busyText">Working</span><span id="busyClock">00:00.0</span>
-      <span class="dock__bar" aria-hidden="true"></span>
-    </div>
-    <div class="dock__actions" id="actions">
-      <button class="btn btn--ghost" id="btnSecondary" type="button" hidden></button>
-      <button class="btn btn--ink" id="btnPrimary" type="button" disabled>Take or choose a photo</button>
+  <nav class="dock" id="dock" aria-label="Actions" hidden>
+    <div class="dock__inner">
+      <div class="dock__busy" id="busy" hidden>
+        <span class="dock__wave" aria-hidden="true"></span>
+        <span id="busyText">Working</span><span class="dock__clock" id="busyClock">00:00.0</span>
+      </div>
+      <div class="dock__actions" id="actions">
+        <button class="btn btn--ghost" id="btnSecondary" type="button" hidden></button>
+        <button class="btn btn--primary" id="btnPrimary" type="button" disabled>Choose a photo</button>
+      </div>
     </div>
   </nav>
-
-  <footer class="foot mono">
-    <span>TensorRoom</span><span>Local AI · RTX 5080</span><span><a href="https://hamishmarshalldawson.com">HMD</a></span>
-  </footer>
 
   <script src="demo.js"></script>
   <script src="app.js"></script>
