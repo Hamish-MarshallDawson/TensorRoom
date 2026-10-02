@@ -87,7 +87,6 @@ To use SAM 3 once Meta has approved your access: run `uv run hf auth login`, the
 ### On your phone
 
 - **Same Wi-Fi:** open `http://<PC IP>:8765` (allow Python through the Windows firewall for private networks when asked).
-- **Anywhere, with [Tailscale](https://tailscale.com):** open `http://<PC name>:8765`, or run `tailscale serve --bg 8765` and use the `https://<PC name>.<tailnet>.ts.net` address. HTTPS also enables saving results through the phone's share sheet and adding the app to the home screen.
 
 ## Configuration
 
@@ -129,6 +128,9 @@ scripts/               environment check, downloads, quantisation, benchmark, RE
 - **Furniture suggestions:** describe what you want and pick from about three catalogue pieces (local FAISS index with all-MiniLM-L6-v2 embeddings, drag-and-drop choice). Qwen-Image-2.1 accepts reference images, so the chosen product can be drawn into the room.
 - **Shopping list:** match the final room's pieces back to the catalogue.
 - **Faster previews:** NVFP4 weights for the RTX 50 series' 4-bit tensor cores.
+- **Merge into one view** Rather than scrolling through all stages one combined view with back forth arrows.
+- **Further user testing and surveys** Get UI/UX testing performed to truly evaluate if its working.
+- **Config editing** Allow users to fine tune model settings and more within the app 
 
 ## Contributors
 
