@@ -20,20 +20,20 @@
                   editing the result.
 
   The main action always sits in the dock at the bottom of the screen,
-  within reach of a thumb.
+  within reach of a thumb. The step list (sidebar on desktop, progress bar
+  on phones) jumps back to any step already reached.
 */
 (() => {
   "use strict";
 
   const UPLOAD_MAX_SIDE = 3072;   // Longest side sent to the server
   const UPLOAD_QUALITY = 0.92;
-  const STEPS = { 1: "Capture", 2: "Target", 3: "Select", 4: "Result" };
+  const STEPS = { 1: "Your room", 2: "What to change", 3: "Choose & describe", 4: "The result" };
 
   const $ = (id) => document.getElementById(id);
   const el = {
-    stepIndex: $("stepIndex"), stepName: $("stepName"), stepCount: $("stepCount"),
+    stepIndex: $("stepIndex"), stepName: $("stepName"), steps: $("steps"),
     linkStatus: $("linkStatus"), linkText: $("linkText"),
-    sessionId: $("sessionId"), vram: $("vram"), quant: $("quant"),
     fileCamera: $("fileCamera"), fileLibrary: $("fileLibrary"),
     captureButtons: $("captureButtons"), photoFrame: $("photoFrame"), photoPreview: $("photoPreview"),
     photoMeta: $("photoMeta"), retake: $("retake"),
@@ -42,8 +42,8 @@
     stage: $("stage"), stagePhoto: $("stagePhoto"), stageCanvas: $("stageCanvas"),
     selectCount: $("selectCount"), instanceList: $("instanceList"), instruction: $("instruction"),
     compare: $("compare"), afterImg: $("afterImg"), beforeImg: $("beforeImg"), compareRange: $("compareRange"),
-    resultMeta: $("resultMeta"), startOver: $("startOver"),
-    alert: $("alert"), busy: $("busy"), busyText: $("busyText"), busyClock: $("busyClock"),
+    resultMeta: $("resultMeta"), startOver: $("startOver"), brand: $("brand"),
+    alert: $("alert"), dock: $("dock"), actions: $("actions"), busy: $("busy"), busyText: $("busyText"), busyClock: $("busyClock"),
     btnPrimary: $("btnPrimary"), btnSecondary: $("btnSecondary"),
   };
 
@@ -116,6 +116,7 @@
     el.busy.hidden = !text;
     el.btnPrimary.disabled = state.busy || el.btnPrimary.dataset.ready !== "1";
     el.btnSecondary.disabled = state.busy;
+    syncDock();
     if (!text) { clearInterval(setBusy.timer); return; }
     el.busyText.textContent = text;
     const start = performance.now();
@@ -128,18 +129,30 @@
 
   function pad(n) { return String(n).padStart(2, "0"); }
 
+  // Status values (VRAM, model, session) appear in the sidebar and the footer.
+  function setField(name, text) {
+    for (const node of document.querySelectorAll(`[data-field="${name}"]`)) node.textContent = text;
+  }
+
   // ---------------------------------------------------------------- step + dock
   function goTo(step) {
     state.step = step;
     document.body.dataset.step = step;
     el.stepIndex.textContent = pad(step);
     el.stepName.textContent = STEPS[step];
-    el.stepCount.textContent = `${pad(step)}/${pad(4)}`;
     el.secTarget.hidden = step < 2;
     el.secSelect.hidden = step < 3;
     el.secResult.hidden = step < 4;
     for (const sec of [el.secCapture, el.secTarget, el.secSelect, el.secResult]) {
       sec.classList.toggle("is-current", Number(sec.dataset.step) === step);
+      sec.classList.toggle("is-done", Number(sec.dataset.step) < step);
+    }
+    for (const btn of el.steps.querySelectorAll(".step")) {
+      const n = Number(btn.dataset.step);
+      btn.classList.toggle("is-current", n === step);
+      btn.classList.toggle("is-done", n < step);
+      btn.disabled = n > step;
+      if (n === step) btn.setAttribute("aria-current", "step"); else btn.removeAttribute("aria-current");
     }
     updateDock();
     const target = [null, el.secCapture, el.secTarget, el.secSelect, el.secResult][step];
@@ -171,13 +184,21 @@
     if (label) { el.btnSecondary.textContent = label; el.btnSecondary.onclick = handler; }
   }
 
+  // Step 1 has its own photo buttons, so the dock only appears there to show progress.
+  function syncDock() {
+    el.actions.hidden = state.step === 1;
+    el.dock.hidden = state.step === 1 && !state.busy;
+    document.body.classList.toggle("has-dock", !el.dock.hidden);
+  }
+
   function updateDock() {
+    syncDock();
     const termsReady = el.terms.value.trim().length > 0;
     const editReady = state.selected.size > 0 && el.instruction.value.trim().length > 0;
     switch (state.step) {
       case 1:
         setSecondary(null);
-        setPrimary("Take or choose a photo", false, null);
+        setPrimary("Choose a photo", false, null);
         break;
       case 2:
         setSecondary(null);
@@ -228,7 +249,7 @@
   }
 
   function resetFrom(step) {
-    if (step <= 1) { state.imageId = null; state.serverSize = null; el.sessionId.textContent = "—"; }
+    if (step <= 1) { state.imageId = null; state.serverSize = null; setField("session", "—"); }
     if (step <= 2) { state.instances = []; state.selected.clear(); el.instanceList.innerHTML = ""; }
     if (step <= 3) { state.result = null; }
   }
@@ -287,7 +308,7 @@
       state.imageId = body.image_id;
       state.serverSize = [body.width, body.height];
       state.photoBlob = null;
-      el.sessionId.textContent = body.image_id;
+      setField("session", body.image_id);
       state.instances = await Promise.all(body.instances.map(decodeInstance));
       // Pre-select everything: usually the user wants all the sofas they named.
       state.selected = new Set(state.instances.map((i) => i.id));
@@ -358,30 +379,34 @@
     ctx.clearRect(0, 0, rect.width, rect.height);
     if (!state.instances.length || !state.serverSize) return;
 
-    const signal = cssVar("--signal") || "#1f1fff";
+    const accent = cssVar("--accent") || "#e4531d";
+    const ink = "#2b1d14"; // Unchosen objects: espresso in both themes, so the photo stays readable
     const sx = rect.width / state.serverSize[0];
     const sy = rect.height / state.serverSize[1];
 
     for (const inst of state.instances) {
       const on = state.selected.has(inst.id);
-      ctx.globalAlpha = on ? 0.55 : 0.28;
-      ctx.drawImage(tinted(inst, on ? signal : "#000"), 0, 0, rect.width, rect.height);
+      ctx.globalAlpha = on ? 0.55 : 0.3;
+      ctx.drawImage(tinted(inst, on ? accent : ink), 0, 0, rect.width, rect.height);
     }
     ctx.globalAlpha = 1;
 
-    // Numbered tags in the site's style: mono caps in a solid block.
-    ctx.font = "700 11px 'JetBrains Mono', ui-monospace, monospace";
+    // Numbered pill tags at the top-left of each object.
+    ctx.font = "600 12px 'DM Sans', system-ui, sans-serif";
     ctx.textBaseline = "middle";
     for (const inst of state.instances) {
       const on = state.selected.has(inst.id);
-      const text = `${pad(inst.id + 1)} ${inst.label.toUpperCase()}`;
-      const w = ctx.measureText(text).width + 12;
-      const x = Math.min(Math.max(0, inst.box[0] * sx), rect.width - w);
-      const y = Math.max(0, inst.box[1] * sy);
-      ctx.fillStyle = on ? signal : "#000";
-      ctx.fillRect(x, y, w, 20);
-      ctx.fillStyle = "#fff";
-      ctx.fillText(text, x + 6, y + 10);
+      const text = `${pad(inst.id + 1)}  ${inst.label}`;
+      const w = ctx.measureText(text).width + 20;
+      const h = 24;
+      const x = Math.min(Math.max(4, inst.box[0] * sx + 4), rect.width - w - 4);
+      const y = Math.min(Math.max(4, inst.box[1] * sy + 4), rect.height - h - 4);
+      ctx.fillStyle = on ? accent : "#fff6ea";
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, h, h / 2); else ctx.rect(x, y, w, h);
+      ctx.fill();
+      ctx.fillStyle = on ? "#fff6ea" : ink;
+      ctx.fillText(text, x + 10, y + h / 2 + 0.5);
     }
   }
 
@@ -393,10 +418,11 @@
       btn.type = "button";
       btn.className = "instance";
       btn.dataset.id = inst.id;
-      btn.innerHTML = `<span class="instance__box" aria-hidden="true"></span>
-        <span class="instance__name"></span><span class="mono"></span>`;
-      btn.children[1].textContent = `${pad(inst.id + 1)} ${inst.label}`;
-      btn.children[2].textContent = `${Math.round(inst.score * 100)}%`;
+      btn.innerHTML = `<span class="instance__n"></span><span class="instance__name"></span>
+        <span class="instance__score"></span><span class="instance__box" aria-hidden="true"></span>`;
+      btn.children[0].textContent = pad(inst.id + 1);
+      btn.children[1].textContent = inst.label;
+      btn.children[2].textContent = `${Math.round(inst.score * 100)}% match`;
       btn.addEventListener("click", () => toggleInstance(inst.id));
       li.appendChild(btn);
       el.instanceList.appendChild(li);
@@ -418,7 +444,7 @@
     }
     const n = state.selected.size;
     el.selectCount.textContent = state.instances.length
-      ? `${n} of ${state.instances.length} selected · tap the photo to toggle`
+      ? `${n} of ${state.instances.length} chosen · tap the photo to toggle`
       : "0 selected";
   }
 
@@ -463,7 +489,7 @@
       const t = body.timings || {};
       const v = body.vram_gb || {};
       el.resultMeta.textContent =
-        `${quality} · edit ${(t.edit || 0).toFixed(1)}s · ${body.model_size[0]}×${body.model_size[1]}` +
+        `${quality} · ${(t.edit || 0).toFixed(1)} s · ${body.model_size[0]}×${body.model_size[1]}` +
         (v.peak_allocated ? ` · peak ${v.peak_allocated} GB` : "");
       refreshHealth();
       goTo(4);
@@ -510,7 +536,7 @@
   function keepEditing() {
     // The result becomes the new starting photo; the server already holds it.
     state.imageId = state.result.image_id;
-    el.sessionId.textContent = state.imageId;
+    setField("session", state.imageId);
     setPhotoUrl(el.afterImg.src);
     el.photoPreview.src = state.photoUrl;
     el.photoMeta.textContent = "Edited photo";
@@ -542,8 +568,8 @@
       el.linkStatus.classList.toggle("is-offline", !h.ready);
       el.linkText.textContent = h.ready ? "GPU online" : "Loading";
       const v = h.vram_gb || {};
-      el.vram.textContent = v.device_total ? `${v.device_used} / ${v.device_total} GB` : "—";
-      if (h.quant) el.quant.textContent = h.quant.toUpperCase();
+      setField("vram", v.device_total ? `${v.device_used} / ${v.device_total} GB` : "—");
+      if (h.quant) setField("quant", h.quant.toUpperCase());
       if (!el.suggestions.children.length && h.vocabulary) renderSuggestions(h.vocabulary);
       return h.ready;
     } catch {
@@ -566,7 +592,15 @@
   el.fileCamera.addEventListener("change", onPhotoChosen);
   el.fileLibrary.addEventListener("change", onPhotoChosen);
   el.retake.addEventListener("click", startOver);
+  // The logo goes back to the landing view without reloading (and keeps ?demo).
+  el.brand.addEventListener("click", (e) => { e.preventDefault(); startOver(); });
   el.startOver.addEventListener("click", startOver);
+  el.steps.addEventListener("click", (e) => {
+    const btn = e.target.closest(".step");
+    if (!btn || btn.disabled) return;
+    const n = Number(btn.dataset.step);
+    scrollToPanel([null, el.secCapture, el.secTarget, el.secSelect, el.secResult][n]);
+  });
   el.terms.addEventListener("input", onTermsChanged);
   el.terms.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && currentTerms().length && !state.busy) { e.preventDefault(); findObjects(); }
@@ -574,7 +608,9 @@
   el.instruction.addEventListener("input", updateDock);
   el.stage.addEventListener("click", onStageTap);
   el.compareRange.addEventListener("input", (e) => setComparePos(e.target.value));
-  window.addEventListener("resize", () => requestAnimationFrame(drawStage));
+  // Redraw whenever the photo changes size, including when its panel first appears.
+  if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(drawStage)).observe(el.stagePhoto);
+  else window.addEventListener("resize", () => requestAnimationFrame(drawStage));
   el.stagePhoto.addEventListener("load", drawStage);
 
   goTo(1);
