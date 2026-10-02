@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src import branding  # noqa: E402
 from src.config import load_config, repo_path  # noqa: E402
 
 
@@ -85,7 +86,7 @@ def main() -> None:
                 for rep in range(args.repeats):
                     res = pipeline.edit(manager, photo, instances, args.instruction, quality=quality, seed=args.seed)
                     name = f"{photo_path.stem}_{max_side}_{quality}_{rep}.png"
-                    res.image.save(out_dir / name)
+                    branding.save_png(branding.watermark(res.image), out_dir / name)
                     row = {
                         "photo": photo_path.name,
                         "megapixels": round(photo.width * photo.height / 1e6, 1),
