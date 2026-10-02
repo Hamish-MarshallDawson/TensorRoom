@@ -364,6 +364,14 @@ body[data-step]:not([data-step="1"]) .hero { display: none; }
   font-family: var(--font-mono); font-size: var(--fs-small);
 }
 .alert::before { content: "ERROR // "; font-weight: 700; color: #ff5c5c; }
+/* Guardrail refusals: a warning, not a fault. Paper with a signal-blue hard shadow. */
+.alert--warn {
+  background: var(--paper); color: var(--ink);
+  border-top-width: var(--bw-heavy);
+  box-shadow: var(--off-1) var(--off-1) 0 var(--signal);
+  font-weight: 500;
+}
+.alert--warn::before { content: "WARNING // PHOTO REFUSED"; display: block; margin-bottom: 6px; color: var(--signal); }
 
 /* ------------------------------------------------------------------ action dock */
 .dock {

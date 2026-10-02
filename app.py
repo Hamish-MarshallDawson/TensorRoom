@@ -117,7 +117,13 @@ if st.button("Find objects", disabled=not terms or (upload is None and st.sessio
         if not body["instances"]:
             st.warning("Nothing matched. Try another word, e.g. 'couch' instead of 'settee'.")
     else:
-        st.error(r.text)
+        detail = r.json().get("detail") if r.headers.get("content-type", "").startswith("application/json") else None
+        if isinstance(detail, dict) and detail.get("code") == "guardrail_person":
+            # Refused by src/guardrails.py: forget the photo so the user starts again.
+            st.session_state.update(image_id=None, instances=[], overlay=None, result=None)
+            st.warning(detail["message"])
+        else:
+            st.error(r.text)
 
 # ------------------------------------------------------------------ step 3: choose and edit
 if st.session_state.overlay:

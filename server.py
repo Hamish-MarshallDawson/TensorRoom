@@ -25,7 +25,9 @@ Endpoints
 ``GET  /health``        model status, VRAM use and the vocabulary for suggestion chips
 ``POST /segment``       upload a photo (or reuse ``image_id``) plus comma-separated terms;
                         returns the objects found, each with a small transparent mask PNG
-                        the web app uses for tap-to-select, plus a preview overlay
+                        the web app uses for tap-to-select, plus a preview overlay.
+                        New uploads showing a person or character are rejected
+                        with 422 and ``detail.code == "guardrail_person"`` (src/guardrails.py)
 ``POST /edit``          edit the chosen objects of a stored photo; the result is stored
                         under a new ``image_id`` so edits can be chained
 ``GET  /image/{id}``    full-resolution PNG of a stored photo
@@ -51,7 +53,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
-from src import pipeline
+from src import guardrails, pipeline
 from src.config import load_config, repo_path
 from src.runtime.model_manager import ModelManager
 from src.segmentation.masks import draw_overlay
@@ -143,9 +145,19 @@ def segment(
     image: UploadFile | None = File(None),
     image_id: str | None = Form(None),
 ):
+    guard_seconds = 0.0
     if image is not None:
         # exif_transpose: phone photos are often stored sideways with a rotation tag.
         photo = ImageOps.exif_transpose(Image.open(image.file)).convert("RGB")
+        guard = guardrails.check_photo(manager, photo)
+        if not guard.allowed:
+            # Rejected photos are never stored. The web app reads "code" to send the user back to the start.
+            raise HTTPException(422, {
+                "code": "guardrail_person",
+                "message": guard.message,
+                "found": sorted({m.label for m in guard.found}),
+            })
+        guard_seconds = guard.seconds
         session = Session(image=photo)
         image_id = sessions.add(session)
     elif image_id:
@@ -155,6 +167,8 @@ def segment(
 
     term_list = [t for t in terms.split(",") if t.strip()]
     instances, timings = pipeline.segment(manager, session.image, term_list)
+    if guard_seconds:
+        timings["guardrail"] = guard_seconds
     session.instances = instances
     overlay = draw_overlay(session.image, [i.mask for i in instances], [i.label for i in instances],
                            max_side=SERVER_CFG.get("display_max_side", 1600))

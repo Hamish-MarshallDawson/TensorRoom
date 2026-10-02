@@ -8,6 +8,9 @@
   * working on the UI on a laptop without the RTX 5080 stack installed;
   * testing layouts on real phones and in browser device emulators.
 
+  Add "&guard" as well (e.g. ?demo&guard) to have every new photo refused
+  by the people guardrail, to try the warning and return to the start.
+
   It quietly replaces fetch() for the four API calls. "Objects" are made-up
   ellipses, and the "edit" just recolours the chosen areas after a short
   pause. Without "?demo" this file does nothing.
@@ -78,6 +81,14 @@
         await sleep(900);
         const form = init.body;
         let imageId = form.get("image_id");
+        if (!imageId && new URLSearchParams(location.search).has("guard")) {
+          return new Response(JSON.stringify({ detail: {
+            code: "guardrail_person",
+            message: "This photo looks like it shows a person or a character. TensorRoom only edits rooms, " +
+              "so take or choose a photo of the room with nobody in it.",
+            found: ["person"],
+          } }), { status: 422, headers: { "Content-Type": "application/json" } });
+        }
         if (!imageId) { imageId = id(); store.set(imageId, await blobToCanvas(form.get("image"))); }
         const photo = store.get(imageId);
         const terms = form.get("terms").split(",").map((t) => t.trim()).filter(Boolean);
