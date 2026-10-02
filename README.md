@@ -130,7 +130,8 @@ scripts/               environment check, downloads, quantisation, benchmark, RE
 - **Faster previews:** NVFP4 weights for the RTX 50 series' 4-bit tensor cores.
 - **Merge into one view** Rather than scrolling through all stages one combined view with back forth arrows.
 - **Further user testing and surveys** Get UI/UX testing performed to truly evaluate if its working.
-- **Config editing** Allow users to fine tune model settings and more within the app 
+- **Config editing** Allow users to fine tune model settings and more within the app
+- **Further guardrails** Avoid users editing photos of other people 
 
 ## Contributors
 
