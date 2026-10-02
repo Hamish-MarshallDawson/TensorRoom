@@ -1,0 +1,41 @@
+{
+  "gpu": "NVIDIA GeForce RTX 5080",
+  "edits": [
+    {
+      "term": "sofa",
+      "instruction": "a dark green velvet mid-century sofa",
+      "file": "edit-1-sofa.jpg",
+      "edit_s": 22.4,
+      "peak_vram_gb": 11.64
+    },
+    {
+      "term": "rug",
+      "instruction": "a round natural jute rug",
+      "file": "edit-2-rug.jpg",
+      "edit_s": 17.3,
+      "peak_vram_gb": 10.41
+    },
+    {
+      "term": "coffee table",
+      "instruction": "a round white marble coffee table",
+      "file": "edit-3-coffee-table.jpg",
+      "edit_s": 20.3,
+      "peak_vram_gb": 11.64
+    },
+    {
+      "term": "chair",
+      "instruction": "a cognac leather armchair",
+      "file": "edit-4-chair.jpg",
+      "edit_s": 25.6,
+      "peak_vram_gb": 13.28
+    }
+  ],
+  "generate_s": 27.0,
+  "segment_s": 2.11,
+  "found": [
+    "coffee table",
+    "rug",
+    "sofa",
+    "chair"
+  ]
+}

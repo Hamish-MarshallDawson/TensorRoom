@@ -15,3 +15,120 @@ seed: 42
 #Segmentation Model Options
 box_threshold: 0.3
 text_threshold: 0.15
+
+# =============================================================================
+# Room editing pipeline (Qwen-Image-2.1 + SAM 3)
+# -----------------------------------------------------------------------------
+# Everything below is used by the new photo-editing flow (server.py, app.py and
+# scripts/). It is CUDA-only and tuned for an RTX 5080 (16 GB). The settings
+# above are left untouched so Jake's SDXL generator and GroundedSAM demo keep
+# working as before.
+# =============================================================================
+
+paths:
+  models_dir: "models"              # Downloaded extras and pre-shrunk weights (git-ignored)
+  hf_cache_dir: null                # Optionally point the Hugging Face cache at a roomier drive, e.g. "G:/hf-cache"
+  outputs_dir: "data/outputs"       # Edited images saved by the worker
+  benchmarks_dir: "data/benchmarks" # CSV + images written by scripts/benchmark.py
+
+editor:
+  device: "cuda"
+  base_model_id: "Qwen/Qwen-Image-2.1"
+  # Step 4: weights are shrunk once by scripts/quantise_models.py and loaded from here.
+  quantised_dir: "models/qwen-image-2.1-quantised"
+  transformer_quant: "fp8"          # fp8 (default) | nf4 (more headroom, slightly lower quality) | none
+  text_encoder_quant: "nf4"         # nf4 | none
+  # Step 5: keep the text encoder in system RAM except while it is actually encoding.
+  offload_text_encoder: true
+  # Also park the generator in system RAM while the text encoder runs. Measured on the
+  # RTX 5080: without this, both together overflow 16 GB and encoding takes about 40 s.
+  swap_generator_during_encode: true
+  # Step 1: 4-step acceleration adapter (Parallel Decoding Distillation).
+  acceleration:
+    enabled: true
+    repo_id: "alibaba-pai/Qwen-Image-2.1-Fun-Acc-LoRAs"
+    local_dir: "models/fun-acc"
+    use_kv_cache: false             # Measured: no speed gain for previews, +2.3 GB peak
+  preview_fallback_steps: 8         # Used for previews only if the adapter is missing or disabled
+  final_steps: 20                   # "Final render" runs the full model: about 37 s on the RTX 5080 (30 steps: about 55 s)
+  # Prefix KV cache for final renders: roughly halves the time but peaks at about 15.2 GB
+  # (vs 12.9 GB), which only fits if Windows spills into system RAM. Leave off.
+  final_use_kv_cache: false
+  true_cfg_scale: 1.0
+  # Step 2: the model only ever sees a crop around the mask, scaled so its long side is this size.
+  max_side: 1024
+  # How large the model "reads" the input photo (passed as output_resolution). Measured on the
+  # RTX 5080 with 1024 crops: 1024 -> 16.5 s per preview, 768 -> 11.7 s. With max_side 768 as
+  # well it drops to 10.1 s.
+  reference_resolution: 768
+  size_multiple: 32
+  crop_context: 0.6                 # Extra context around the mask, as a fraction of the mask's box size
+  min_crop_side: 384                # Never crop tighter than this many original pixels
+  # Editable area per object:
+  #   hull       -> outline filled out to its convex hull, so the gaps between table or
+  #                 chair legs can change too (needed when the new piece has another shape)
+  #   silhouette -> exact outline only (fine for recolouring, but a round table replacing
+  #                 a four-legged one was cut off and left floating in testing)
+  mask_shape: "hull"
+  # Step 3: soft-edged paste-back.
+  mask_grow_px: 12                  # Grow the object mask so edges and shadows are included
+  feather_px: 16                    # Width of the soft edge when pasting the result back
+  # How the mask is shown to the model:
+  #   annotated -> one image with the region painted in translucent red (default)
+  #   separate  -> two images: the crop and a black/white mask (white = change)
+  # Measured on a rug swap: "separate" made the model output transparent areas
+  # (about 28% of the image, 69% even when asked for an opaque photo), which show
+  # up as junk colours. "annotated" gave 0% transparency and a clean edit.
+  mask_mode: "annotated"
+  prompt_templates:
+    separate: >-
+      Image 1 is a photo of a room. Image 2 is a mask: edit image 1 only where image 2 is white
+      and keep every black area exactly as it is. In the white area: {instruction}.
+      Match the room's perspective, lighting and shadows.
+    annotated: >-
+      In the area painted red: {instruction}. Remove the red paint, keep everything outside it
+      unchanged, and match the room's perspective, lighting and shadows.
+
+segmentation:
+  # sam3         -> Meta's SAM 3 (best; gated, needs approved Hugging Face access)
+  # grounded_sam -> Grounding DINO + SAM (open models; stand-in while SAM 3 access is pending)
+  backend: "grounded_sam"
+  grounded_sam:
+    detector_id: "IDEA-Research/grounding-dino-base"
+    sam_id: "facebook/sam-vit-huge"
+    box_threshold: 0.3
+    text_threshold: 0.25
+  model_id: "facebook/sam3"         # Gated on Hugging Face: accept Meta's terms first
+  device: "cuda"
+  dtype: "bfloat16"
+  threshold: 0.5
+  mask_threshold: 0.5
+  max_side: 1536                    # Photos are shrunk to this before SAM 3; masks come back at full size
+  dedupe_iou: 0.8                   # Drop near-identical masks found by two synonyms
+  offload_during_edit: true         # Move SAM 3 to system RAM while the image model runs
+  # Key/dictionary matching: what the user types -> phrases SAM 3 is asked to find.
+  # Seeded from Jake's ONTOLOGY_TERMS in src/segmentation/sam.py.
+  vocabulary:
+    table: ["table"]
+    coffee table: ["coffee table"]
+    window: ["window"]
+    lamp: ["lamp", "floor lamp", "table lamp"]
+    ottoman: ["ottoman", "footstool"]
+    sofa: ["sofa", "couch"]
+    couch: ["sofa", "couch"]
+    chair: ["chair", "armchair"]
+    rug: ["rug", "carpet"]
+    curtains: ["curtain"]
+    plant: ["potted plant"]
+
+server:
+  host: "127.0.0.1"                 # Use "0.0.0.0" so phones on the same Wi-Fi can reach the web app
+  port: 8765
+  mask_preview_side: 768            # Size of the per-object masks sent to the phone for tap-to-select
+  max_sessions: 8                   # Photos kept in worker memory for follow-up edits
+  display_max_side: 1600            # Size of images sent back to the browser for display
+  warmup: true                      # Run one tiny edit at start-up so the first real edit is fast
+
+benchmark:
+  max_peak_vram_gb: 13.5            # Go/no-go: process peak, leaving room for the Windows desktop
+  max_preview_seconds: 10.0         # Go/no-go: one preview edit at max_side

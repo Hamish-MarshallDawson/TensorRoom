@@ -1,0 +1,11 @@
+{
+  "name": "TensorRoom",
+  "short_name": "TensorRoom",
+  "description": "Photograph a room, pick what to change, and see it redesigned.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1f1fff",
+  "icons": [{ "src": "../public/logo.png", "sizes": "any", "type": "image/png" }]
+}

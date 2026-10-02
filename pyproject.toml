@@ -2,13 +2,53 @@
 name = "tensorroom"
 version = "0.1.0"
 requires-python = ">=3.11"
+# Room editing stack: Qwen-Image-2.1 (diffusers) + SAM 3 (transformers), tuned for an RTX 5080.
+# GroundedSAM (src/segmentation/sam.py) needs transformers==4.35.2, which clashes with
+# Qwen-Image-2.1 (needs >=5.17); it now has its own environment, see requirements-grounded-sam.txt.
 dependencies = [
     "streamlit",
-    "torch",
+    "torch>=2.8",
+    "torchvision",
     "diffusers",
-    "transformers==4.35.2",
+    "transformers>=5.17",
     "accelerate",
     "safetensors",
+    "huggingface_hub",
+    # Weight shrinking (FP8 / NF4). CUDA-only, so skipped on macOS.
+    "torchao>=0.18; sys_platform != 'darwin'",
+    "bitsandbytes>=0.50; sys_platform != 'darwin'",
     "Pillow",
-    "autodistill-grounded-sam>=0.1.2",
+    "numpy",
+    "opencv-python",
+    "pyyaml",
+    # GPU worker (server.py) and the UI's calls to it
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    "requests",
 ]
+
+[tool.uv]
+# Use uv's own Python builds. The Microsoft Store Python lives in a protected
+# WindowsApps folder that uv cannot copy from when building packages from
+# source (e.g. diffusers from GitHub), which fails with "os error 6000".
+python-preference = "only-managed"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv.sources]
+# QwenImage21Pipeline is merged into diffusers but not yet in a PyPI release (latest is 0.40).
+diffusers = { git = "https://github.com/huggingface/diffusers" }
+# CUDA 13.0 builds of PyTorch for the RTX 5080 (Blackwell needs CUDA 12.8+). macOS keeps the PyPI build.
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

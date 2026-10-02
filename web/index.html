@@ -1,0 +1,147 @@
+<!doctype html>
+<!--
+  TensorRoom mobile web app
+  =========================
+  The page people open on their phone (or any browser). It is mobile-first:
+  every control is at least 44 px, the main action sits in a dock at the
+  bottom where thumbs reach, and it works from 320 px wide phones up to
+  desktops in either orientation.
+
+  The look follows hamishmarshalldawson.com: white paper and black ink with
+  a single signal blue, Archivo in heavy uppercase for display type,
+  JetBrains Mono for labels, thick ruled borders, hard offset shadows and a
+  status bar along the top.
+
+  Served by server.py at "/". Add ?demo to the address to try the whole flow
+  with fake results and no GPU (handy for UI work: see demo.js).
+-->
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="TensorRoom">
+  <meta name="description" content="Photograph a room, pick what to change, and see it redesigned.">
+  <title>TensorRoom</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../public/logo.png">
+  <link rel="apple-touch-icon" href="../public/logo.png">
+  <!-- Same typefaces as hamishmarshalldawson.com. Without internet the page falls back to Helvetica/Arial and the system monospace. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Top status bar -->
+  <header class="bar">
+    <div class="bar__brand"><img src="../public/logo.png" alt="" width="28" height="28"><span>TR</span></div>
+    <div class="bar__step"><span class="bar__index" id="stepIndex">01</span><span id="stepName">Capture</span></div>
+    <div class="bar__count mono" id="stepCount">01/04</div>
+    <div class="bar__status mono" id="linkStatus"><span class="led" aria-hidden="true"></span><span id="linkText">Linking</span></div>
+  </header>
+
+  <!-- Info strip, like the site's Designation / Status / Current post row -->
+  <div class="strip mono" aria-live="polite">
+    <div><span class="strip__k">Session</span><span id="sessionId">—</span></div>
+    <div><span class="strip__k">VRAM</span><span id="vram">—</span></div>
+    <div class="strip__wide"><span class="strip__k">Model</span><span>Qwen-Image-2.1 · <span id="quant">FP8</span></span></div>
+  </div>
+
+  <main id="main">
+    <section class="hero" aria-label="TensorRoom">
+      <h1 class="display"><span>Tensor</span><span class="outline">Room</span></h1>
+      <p class="hero__sub mono">Photograph a room · pick what changes · see it redesigned</p>
+    </section>
+
+    <!-- 01 Capture -->
+    <section class="panel" id="secCapture" data-step="1">
+      <h2 class="panel__head"><span class="tag">01</span>Your room</h2>
+      <div class="capture" id="captureButtons">
+        <label class="tile tile--ink">
+          <input type="file" accept="image/*" capture="environment" id="fileCamera" class="sr-only">
+          <span class="tile__icon" aria-hidden="true">◉</span>
+          <span class="tile__label">Take photo</span>
+          <span class="tile__hint mono">Opens camera</span>
+        </label>
+        <label class="tile">
+          <input type="file" accept="image/*" id="fileLibrary" class="sr-only">
+          <span class="tile__icon" aria-hidden="true">▤</span>
+          <span class="tile__label">Choose photo</span>
+          <span class="tile__hint mono">From library</span>
+        </label>
+      </div>
+      <figure class="frame" id="photoFrame" hidden>
+        <img id="photoPreview" alt="Your room">
+        <figcaption class="frame__cap mono"><span id="photoMeta">—</span><button class="link mono" id="retake" type="button">Change photo</button></figcaption>
+      </figure>
+    </section>
+
+    <!-- 02 What to change -->
+    <section class="panel" id="secTarget" data-step="2" hidden>
+      <h2 class="panel__head"><span class="tag">02</span>What should change?</h2>
+      <label class="field">
+        <span class="field__label mono">Objects</span>
+        <input type="text" id="terms" placeholder="sofa, coffee table" autocomplete="off" autocapitalize="none" enterkeyhint="search">
+      </label>
+      <div class="chips" id="suggestions" aria-label="Suggestions"></div>
+    </section>
+
+    <!-- 03 Pick and describe -->
+    <section class="panel" id="secSelect" data-step="3" hidden>
+      <h2 class="panel__head"><span class="tag">03</span>Tap what to change</h2>
+      <div class="stage" id="stage">
+        <img id="stagePhoto" alt="Your room with the objects found highlighted">
+        <canvas id="stageCanvas" aria-hidden="true"></canvas>
+      </div>
+      <p class="hint mono" id="selectCount">0 selected</p>
+      <ul class="instances" id="instanceList"></ul>
+      <label class="field">
+        <span class="field__label mono">Change them to</span>
+        <textarea id="instruction" rows="2" placeholder="a green velvet mid-century sofa" enterkeyhint="done"></textarea>
+      </label>
+    </section>
+
+    <!-- 04 Result -->
+    <section class="panel" id="secResult" data-step="4" hidden>
+      <h2 class="panel__head"><span class="tag">04</span>Result</h2>
+      <div class="compare" id="compare">
+        <img id="afterImg" alt="Edited room">
+        <div class="compare__before" id="beforeClip"><img id="beforeImg" alt="Original room"></div>
+        <div class="compare__handle" aria-hidden="true"></div>
+        <span class="compare__tag compare__tag--l mono">Before</span>
+        <span class="compare__tag compare__tag--r mono">After</span>
+        <input type="range" id="compareRange" min="0" max="100" value="50" aria-label="Drag to compare before and after">
+      </div>
+      <p class="hint mono" id="resultMeta">—</p>
+      <button class="link mono" id="startOver" type="button">Start again with a new photo</button>
+    </section>
+
+    <div class="alert" id="alert" role="alert" hidden></div>
+  </main>
+
+  <!-- Thumb-reach action dock -->
+  <nav class="dock" aria-label="Actions">
+    <div class="dock__busy mono" id="busy" hidden>
+      <span id="busyText">Working</span><span id="busyClock">00:00.0</span>
+      <span class="dock__bar" aria-hidden="true"></span>
+    </div>
+    <div class="dock__actions" id="actions">
+      <button class="btn btn--ghost" id="btnSecondary" type="button" hidden></button>
+      <button class="btn btn--ink" id="btnPrimary" type="button" disabled>Take or choose a photo</button>
+    </div>
+  </nav>
+
+  <footer class="foot mono">
+    <span>TensorRoom</span><span>Local AI · RTX 5080</span><span><a href="https://hamishmarshalldawson.com">HMD</a></span>
+  </footer>
+
+  <script src="demo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,11 +1,21 @@
+# pip equivalent of pyproject.toml (uv users can ignore this file).
+# Install the CUDA build of PyTorch first, as the RTX 5080 needs CUDA 12.8 or newer:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+# GroundedSAM (src/segmentation/sam.py) has its own list: requirements-grounded-sam.txt
 streamlit
-torch
-diffusers
+diffusers @ git+https://github.com/huggingface/diffusers
+transformers>=5.17
 accelerate
-transformers==4.35.2
 safetensors
+huggingface_hub
+torchao>=0.18
+bitsandbytes>=0.50
 Pillow
-pyyaml
+numpy
 opencv-python
-autodistill
-autodistill-grounded-sam
+pyyaml
+fastapi
+uvicorn
+python-multipart
+requests
+pytest

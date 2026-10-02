@@ -1,0 +1,232 @@
+"""
+TensorRoom GPU worker
+=====================
+
+What this file does
+-------------------
+A small FastAPI server that loads SAM 3 and Qwen-Image-2.1 once, keeps them
+warm, and runs one GPU job at a time (optimisation step 6). It also serves
+the mobile web app in ``web/`` at ``/``, so a phone only needs one address.
+
+Start it with::
+
+    uv run uvicorn server:app --host 0.0.0.0 --port 8765
+
+then open ``http://<this PC's IP>:8765`` on a phone on the same Wi-Fi
+(``127.0.0.1`` instead of ``0.0.0.0`` keeps it to this PC only). On first
+run Windows may ask whether to allow Python through the firewall: allow it
+for private networks only.
+
+Use a single uvicorn worker: each extra worker would load its own copy of the
+models and run out of VRAM.
+
+Endpoints
+---------
+``GET  /health``        model status, VRAM use and the vocabulary for suggestion chips
+``POST /segment``       upload a photo (or reuse ``image_id``) plus comma-separated terms;
+                        returns the objects found, each with a small transparent mask PNG
+                        the web app uses for tap-to-select, plus a preview overlay
+``POST /edit``          edit the chosen objects of a stored photo; the result is stored
+                        under a new ``image_id`` so edits can be chained
+``GET  /image/{id}``    full-resolution PNG of a stored photo
+
+Photos and their masks are kept in memory (last ``server.max_sessions``), so
+masks never have to travel to the browser and back.
+"""
+
+from __future__ import annotations
+
+import base64
+import io
+import logging
+import uuid
+from collections import OrderedDict
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+
+import numpy as np
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
+from PIL import Image, ImageOps
+from pydantic import BaseModel
+
+from src import pipeline
+from src.config import load_config, repo_path
+from src.runtime.model_manager import ModelManager
+from src.segmentation.masks import draw_overlay
+from src.segmentation.sam3_segmenter import Instance
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("tensorroom.server")
+
+CFG = load_config()
+SERVER_CFG = CFG["server"]
+manager: ModelManager | None = None
+
+
+@dataclass
+class Session:
+    image: Image.Image
+    instances: list[Instance] = field(default_factory=list)
+
+
+class SessionStore:
+    """Least-recently-used store of photos (and their masks) kept for follow-up edits."""
+
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self._items: OrderedDict[str, Session] = OrderedDict()
+
+    def add(self, session: Session) -> str:
+        image_id = uuid.uuid4().hex[:12]
+        self._items[image_id] = session
+        while len(self._items) > self.capacity:
+            self._items.popitem(last=False)
+        return image_id
+
+    def get(self, image_id: str) -> Session:
+        if image_id not in self._items:
+            raise HTTPException(404, "Unknown or expired image_id; upload the photo again.")
+        self._items.move_to_end(image_id)
+        return self._items[image_id]
+
+
+sessions = SessionStore(SERVER_CFG.get("max_sessions", 8))
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    global manager
+    manager = ModelManager(CFG)
+    manager.load_all(warmup=SERVER_CFG.get("warmup", True))
+    yield
+
+
+app = FastAPI(title="TensorRoom worker", lifespan=lifespan)
+
+
+def _png_b64(image: Image.Image, max_side: int | None = None) -> str:
+    if max_side and max(image.size) > max_side:
+        image = image.copy()
+        image.thumbnail((max_side, max_side), Image.LANCZOS)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _mask_png_b64(mask: np.ndarray, max_side: int) -> str:
+    """White pixels whose transparency is the mask, shrunk for the phone (tinting and tap hit-testing)."""
+    img = Image.fromarray(mask.astype(np.uint8) * 255, mode="L")
+    if max(img.size) > max_side:
+        img.thumbnail((max_side, max_side), Image.BILINEAR)
+    rgba = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    rgba.putalpha(img)
+    buf = io.BytesIO()
+    rgba.save(buf, format="PNG", optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+@app.get("/health")
+def health():
+    return {
+        "ready": manager is not None,
+        "vram_gb": ModelManager.vram_report(),
+        "vocabulary": sorted((CFG["segmentation"].get("vocabulary") or {}).keys()),
+        "quant": CFG["editor"].get("transformer_quant"),
+    }
+
+
+@app.post("/segment")
+def segment(
+    terms: str = Form(...),
+    image: UploadFile | None = File(None),
+    image_id: str | None = Form(None),
+):
+    if image is not None:
+        # exif_transpose: phone photos are often stored sideways with a rotation tag.
+        photo = ImageOps.exif_transpose(Image.open(image.file)).convert("RGB")
+        session = Session(image=photo)
+        image_id = sessions.add(session)
+    elif image_id:
+        session = sessions.get(image_id)
+    else:
+        raise HTTPException(400, "Send either an image file or an image_id.")
+
+    term_list = [t for t in terms.split(",") if t.strip()]
+    instances, timings = pipeline.segment(manager, session.image, term_list)
+    session.instances = instances
+    overlay = draw_overlay(session.image, [i.mask for i in instances], [i.label for i in instances],
+                           max_side=SERVER_CFG.get("display_max_side", 1600))
+    return {
+        "image_id": image_id,
+        "width": session.image.width,
+        "height": session.image.height,
+        "instances": [
+            {
+                "id": n,
+                "label": i.label,
+                "phrase": i.phrase,
+                "score": round(i.score, 3),
+                "box": i.box,
+                "area": int(i.mask.sum()),
+                "mask_png": _mask_png_b64(i.mask, SERVER_CFG.get("mask_preview_side", 768)),
+            }
+            for n, i in enumerate(instances)
+        ],
+        "overlay_png": _png_b64(overlay),
+        "timings": timings,
+    }
+
+
+class EditRequest(BaseModel):
+    image_id: str
+    instance_ids: list[int]
+    instruction: str
+    quality: str = "preview"  # "preview" (4 steps) or "final"
+    seed: int = 42
+
+
+@app.post("/edit")
+def edit(req: EditRequest):
+    if req.quality not in ("preview", "final"):
+        raise HTTPException(400, "quality must be 'preview' or 'final'.")
+    session = sessions.get(req.image_id)
+    try:
+        chosen = pipeline.instances_by_id(session.instances, req.instance_ids)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    result = pipeline.edit(manager, session.image, chosen, req.instruction, quality=req.quality, seed=req.seed)
+    new_id = sessions.add(Session(image=result.image))
+
+    out_dir = repo_path(CFG["paths"]["outputs_dir"])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    result.image.save(out_dir / f"{new_id}.png")
+
+    return {
+        "image_id": new_id,
+        "image_png": _png_b64(result.image, SERVER_CFG.get("display_max_side", 1600)),
+        "crop_box": result.crop_info.box,
+        "model_size": result.crop_info.model_size,
+        "timings": result.timings,
+        "vram_gb": result.vram,
+    }
+
+
+@app.get("/image/{image_id}")
+def full_image(image_id: str):
+    buf = io.BytesIO()
+    sessions.get(image_id).image.save(buf, format="PNG")
+    return Response(buf.getvalue(), media_type="image/png")
+
+
+# The mobile web app. Mounted last so the API routes above take priority.
+app.mount("/public", StaticFiles(directory=repo_path("public")), name="public")
+app.mount("/", StaticFiles(directory=repo_path("web"), html=True), name="web")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host=SERVER_CFG.get("host", "127.0.0.1"), port=SERVER_CFG.get("port", 8765), workers=1)

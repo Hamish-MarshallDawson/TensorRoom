@@ -3,3 +3,8 @@
 .DS_Store
 __pycache__
 *.png
+.venv-gsam
+models/
+data/outputs/
+data/benchmarks/
+
