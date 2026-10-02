@@ -88,7 +88,6 @@ def check_libraries() -> None:
         "torchao": (0, 18),
         "bitsandbytes": (0, 50),
         "fastapi": None,
-        "streamlit": None,
         "opencv-python": None,
     }
     for pkg, minimum in want.items():
@@ -104,8 +103,6 @@ def check_libraries() -> None:
         print(OK, "diffusers has QwenImage21Pipeline")
     except (ImportError, AttributeError):
         print(FAIL, "diffusers lacks QwenImage21Pipeline: install diffusers from GitHub (see pyproject.toml).")
-    if _ver("autodistill-grounded-sam"):
-        print(WARN, "autodistill-grounded-sam is installed here; it belongs in its own env (requirements-grounded-sam.txt).")
 
 
 def check_files(cfg: dict) -> None:
