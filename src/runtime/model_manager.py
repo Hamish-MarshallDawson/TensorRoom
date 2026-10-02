@@ -16,9 +16,8 @@ It also holds a lock so only one GPU job runs at a time, and reports VRAM use.
 
 Why it exists (optimisation step 6)
 -----------------------------------
-Streamlit re-runs ``app.py`` top to bottom on every click. If the models
-lived there they would be reloaded, or at least fought over, constantly.
-Instead one long-running worker (``server.py``) creates a single
+Loading the models takes about 30 s, so they must not be reloaded per
+request. One long-running worker (``server.py``) creates a single
 ``ModelManager`` at start-up and keeps everything warm.
 """
 

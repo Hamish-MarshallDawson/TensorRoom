@@ -9,17 +9,14 @@ returns a mask, box, score and label for every matching object, using Meta's
 SAM 3 through Hugging Face ``transformers``.
 
 The "key/dictionary" step lives here too: ``expand_terms`` looks each user
-word up in ``segmentation.vocabulary`` in ``config.yaml`` (seeded from Jake's
-``ONTOLOGY_TERMS``) so "couch" also searches for "sofa", and so on. Duplicate
-masks found by two synonyms are merged.
+word up in ``segmentation.vocabulary`` in ``config.yaml`` so "couch" also
+searches for "sofa", and so on. Duplicate masks found by two synonyms are
+merged.
 
-Why SAM 3 rather than GroundedSAM
----------------------------------
-GroundedSAM (``sam.py``) needs ``transformers==4.35.2``, while Qwen-Image-2.1
-needs ``transformers>=5.17``, so they cannot share one environment. SAM 3
-does detection and masking in one model from a text phrase and ships inside
-modern ``transformers``. Jake's ``sam.py`` is left untouched; see
-``requirements-grounded-sam.txt`` for running it in its own environment.
+Why SAM 3
+---------
+SAM 3 does detection and masking in one model from a text phrase and ships
+inside modern ``transformers``.
 
 Optimisations
 -------------

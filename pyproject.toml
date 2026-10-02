@@ -3,10 +3,7 @@ name = "tensorroom"
 version = "0.1.0"
 requires-python = ">=3.11"
 # Room editing stack: Qwen-Image-2.1 (diffusers) + SAM 3 (transformers), tuned for an RTX 5080.
-# GroundedSAM (src/segmentation/sam.py) needs transformers==4.35.2, which clashes with
-# Qwen-Image-2.1 (needs >=5.17); it now has its own environment, see requirements-grounded-sam.txt.
 dependencies = [
-    "streamlit",
     "torch>=2.8",
     "torchvision",
     "diffusers",
@@ -21,11 +18,10 @@ dependencies = [
     "numpy",
     "opencv-python",
     "pyyaml",
-    # GPU worker (server.py) and the UI's calls to it
+    # GPU worker (server.py)
     "fastapi",
     "uvicorn",
     "python-multipart",
-    "requests",
 ]
 
 [tool.uv]

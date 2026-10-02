@@ -1,29 +1,7 @@
-# TensoRoom Configuration file
-
-#Hardware Options
-#device: "cuda"
-device: "mps"
-dtype: "float16"
-
-# Diffusion Model Options
-model_id: "stabilityai/sdxl-turbo"
-prompt: "A cozy modern living room with large windows, and warm lighting. The room is decorated with contemporary furniture and has a comfortable atmosphere."
-output_dir: "data/images/output.png"
-steps: 1
-seed: 42
-
-#Segmentation Model Options
-box_threshold: 0.3
-text_threshold: 0.15
-
-# =============================================================================
-# Room editing pipeline (Qwen-Image-2.1 + SAM 3)
+# TensorRoom configuration
 # -----------------------------------------------------------------------------
-# Everything below is used by the new photo-editing flow (server.py, app.py and
-# scripts/). It is CUDA-only and tuned for an RTX 5080 (16 GB). The settings
-# above are left untouched so Jake's SDXL generator and GroundedSAM demo keep
-# working as before.
-# =============================================================================
+# Used by the worker (server.py) and scripts/. CUDA-only and tuned for an
+# RTX 5080 (16 GB).
 
 paths:
   models_dir: "models"              # Downloaded extras and pre-shrunk weights (git-ignored)
@@ -107,7 +85,6 @@ segmentation:
   dedupe_iou: 0.8                   # Drop near-identical masks found by two synonyms
   offload_during_edit: true         # Move SAM 3 to system RAM while the image model runs
   # Key/dictionary matching: what the user types -> phrases SAM 3 is asked to find.
-  # Seeded from Jake's ONTOLOGY_TERMS in src/segmentation/sam.py.
   vocabulary:
     table: ["table"]
     coffee table: ["coffee table"]
@@ -125,16 +102,13 @@ guardrails:
   # Every uploaded photo is searched for these first (src/guardrails.py). Any match at or
   # above min_score rejects the photo and the web app returns to the start with a warning.
   enabled: true
-  block_terms: ["person", "human face", "cartoon character"]
-  min_score: 0.35                   # Raise if furniture is mistaken for people; lower to be stricter
-  # People inside wall art are allowed: if a person was found, these are searched for too, and
-  # a person whose box is at least inside_fraction inside one of them is ignored. Mirrors are
-  # left out on purpose (the person in a mirror is usually really in the room). [] turns this off.
+  block_terms: ["person", "human face"]
+  min_score: 0.5
   artwork_terms: ["picture frame", "painting", "poster", "television screen"]
   artwork_min_score: 0.35
   inside_fraction: 0.85
   message: >-
-    This photo looks like it shows a person or a character. TensorRoom only edits rooms,
+    This photo looks like it shows a person. TensorRoom only edits rooms,
     so take or choose a photo of the room with nobody in it.
 
 branding:
