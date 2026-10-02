@@ -11,9 +11,8 @@ It does it in two stages:
 1. Grounding DINO finds a box for each object matching the phrases.
 2. SAM (the original Segment Anything) turns each box into a precise mask.
 
-This is the same idea as Jake's GroundedSAM in ``sam.py``, but uses the
-versions built into modern ``transformers``, so it runs in the main
-environment without the ``transformers==4.35.2`` pin.
+Both models are the versions built into modern ``transformers``, so they
+run in the main environment alongside Qwen-Image-2.1.
 
 Why it exists
 -------------

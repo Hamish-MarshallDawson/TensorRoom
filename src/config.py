@@ -5,15 +5,9 @@ Shared configuration loader
 What this file does
 -------------------
 Reads ``config.yaml`` from the repository root and turns relative paths in it
-into absolute ones. Every new module (the editor, the segmenter, the worker,
-the scripts) goes through here, so there is one place that knows where the
+into absolute ones. Every module (the editor, the segmenter, the worker, the
+scripts) goes through here, so there is one place that knows where the
 config lives.
-
-Why it exists
--------------
-``src/diffusion/generator.py`` and ``src/segmentation/sam.py`` each carry their
-own copy of ``load_config``. Those are left alone so Jake's code keeps
-working, but new code should import from here instead of adding a third copy.
 """
 
 from __future__ import annotations

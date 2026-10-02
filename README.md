@@ -64,8 +64,6 @@ The full-precision models need about 31 GB, so they are fitted into 16 GB like t
 | Finding objects (default) | [Grounding DINO](https://huggingface.co/IDEA-Research/grounding-dino-base) + [SAM](https://huggingface.co/facebook/sam-vit-huge) | Apache 2.0 |
 | Finding objects (preferred) | [SAM 3](https://huggingface.co/facebook/sam3), gated: Meta must approve access | SAM licence |
 
-The original SDXL-Turbo generator (`src/diffusion/generator.py`) and GroundedSAM demo (`src/segmentation/sam.py`) are still in the repo; the GroundedSAM demo needs its own environment (see `requirements-grounded-sam.txt`).
-
 ## Getting started
 
 Requires Windows or Linux, an NVIDIA RTX 50-series GPU (16 GB), about 50 GB of disk space and [uv](https://docs.astral.sh/uv/).
@@ -112,11 +110,10 @@ Everything lives in `config.yaml`. The settings most worth knowing:
 ```
 server.py              GPU worker (FastAPI): API + serves the web app
 web/                   mobile web app (plain HTML/CSS/JS, no build step)
-app.py                 Streamlit desktop fallback UI
 config.yaml            all settings
 src/pipeline.py        segment → crop → edit → paste back
-src/diffusion/         editor.py (Qwen-Image-2.1), generator.py (original SDXL-Turbo demo)
-src/segmentation/      grounded_segmenter.py, sam3_segmenter.py, masks.py, sam.py (GroundedSAM demo)
+src/diffusion/         editor.py (Qwen-Image-2.1)
+src/segmentation/      grounded_segmenter.py, sam3_segmenter.py, masks.py
 src/runtime/           model_manager.py: loads models once, decides what sits on the GPU
 src/LLM/, src/RAG/     placeholders for the planned features below
 scripts/               environment check, downloads, quantisation, benchmark, README images
@@ -131,7 +128,6 @@ scripts/               environment check, downloads, quantisation, benchmark, RE
 - **Merge into one view** Rather than scrolling through all stages one combined view with back forth arrows.
 - **Further user testing and surveys** Get UI/UX testing performed to truly evaluate if its working.
 - **Config editing** Allow users to fine tune model settings and more within the app
-- **Cleanup** Remove legacy code and unused files, and switch fully to toml project reqs
 
 ## Contributors
 
