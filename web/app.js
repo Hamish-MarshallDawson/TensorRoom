@@ -10,6 +10,9 @@
                   would take a long time over Wi-Fi, and the server crops
                   to 1024 px for the model anyway.
     02 Target   - type objects or tap suggestion chips, then "Find objects".
+                  The server checks new photos for people or characters
+                  first; a refused photo returns the user to 01 with a
+                  warning (src/guardrails.py).
     03 Select   - every match is tinted on the photo. Tap an object (or its
                   row in the list) to toggle it, then describe the change
                   and choose Preview (4 steps) or Final render.
@@ -62,13 +65,18 @@
     if (!res.ok) {
       let detail = res.statusText;
       try { detail = (await res.json()).detail || detail; } catch { /* not JSON */ }
-      throw new Error(detail || `Request failed (${res.status})`);
+      // Structured errors (e.g. the people guardrail) carry a code the UI acts on.
+      const err = new Error((detail && detail.message) || detail || `Request failed (${res.status})`);
+      if (detail && detail.code) err.code = detail.code;
+      throw err;
     }
     return res.json();
   }
 
-  function showError(message) {
+  // kind "warning" is for photos the guardrails refuse; anything else is shown as an error.
+  function showError(message, kind = "error") {
     el.alert.textContent = message;
+    el.alert.classList.toggle("alert--warn", kind === "warning");
     el.alert.hidden = false;
     el.alert.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -296,7 +304,13 @@
         goTo(3);
       }
     } catch (err) {
-      showError(err.message);
+      if (err.code === "guardrail_person") {
+        // The server refused the photo and kept nothing: back to the start for a new one.
+        startOver();
+        showError(err.message, "warning");
+      } else {
+        showError(err.message);
+      }
     } finally {
       setBusy(null);
       updateDock();
@@ -508,6 +522,9 @@
 
   function startOver() {
     resetFrom(1);
+    state.photoBlob = null;
+    setPhotoUrl(null);
+    el.photoPreview.removeAttribute("src");
     el.terms.value = "";
     el.instruction.value = "";
     syncChips();
