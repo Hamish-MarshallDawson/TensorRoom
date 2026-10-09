@@ -108,11 +108,14 @@ def _flatten(image: Image.Image, background: Image.Image) -> Image.Image:
 
 
 def _find_one(root: Path, pattern: str) -> Path | None:
+    """First file under ``root`` matching ``pattern`` (sorted, so the choice is stable), or None."""
     hits = sorted(root.rglob(pattern)) if root.exists() else []
     return hits[0] if hits else None
 
 
 class RoomEditor:
+    """Qwen-Image-2.1 wrapper: loads the quantised weights, manages offload and runs edits."""
+
     def __init__(self, cfg: dict):
         e = cfg["editor"]
         self.cfg = e
@@ -124,6 +127,7 @@ class RoomEditor:
 
     # ------------------------------------------------------------------ loading
     def load(self) -> None:
+        """Build the pipeline from the pre-shrunk components, apply offload and attach the 4-step adapter if present."""
         from diffusers import QwenImage21Pipeline
 
         transformer, text_encoder = self._load_quantised_components()
@@ -274,7 +278,7 @@ class RoomEditor:
 
     # ------------------------------------------------------------------ editing
     def build_inputs(self, crop: Image.Image, mask: Image.Image, instruction: str) -> tuple[list[Image.Image], str]:
-        """Turn crop + mask + instruction into the images and prompt the model expects."""
+        """Turn crop + mask + instruction into the images and prompt the model expects (see ``mask_mode`` in config.yaml)."""
         mode = self.cfg.get("mask_mode", "separate")
         template = self.cfg["prompt_templates"][mode]
         prompt = template.format(instruction=instruction.strip().rstrip("."))
@@ -305,6 +309,7 @@ class RoomEditor:
         return _flatten(self._run_edit(crop, mask, instruction, quality, seed), crop)
 
     def _run_edit(self, crop: Image.Image, mask: Image.Image, instruction: str, quality: str, seed: int) -> Image.Image:
+        """Run the diffusion model once. Previews use the 4-step adapter when present; finals use the full model."""
         images, prompt = self.build_inputs(crop, mask, instruction)
         width, height = crop.size
         common = dict(
@@ -368,7 +373,7 @@ class RoomEditor:
         return _flatten(self.pipe(**kwargs).images[0], white)
 
     def warmup(self) -> None:
-        """One tiny edit so CUDA kernels are compiled before the first real request."""
+        """Run one tiny edit so CUDA kernels are compiled before the first real request."""
         crop = Image.new("RGB", (256, 256), (180, 170, 160))
         mask = Image.new("L", (256, 256), 0)
         mask.paste(255, (64, 64, 192, 192))

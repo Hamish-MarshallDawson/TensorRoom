@@ -56,11 +56,13 @@ _XMP = """<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
 
 
 def _cfg() -> dict:
+    """The ``branding`` section of config.yaml (empty if missing)."""
     return load_config().get("branding") or {}
 
 
 @lru_cache(maxsize=4)
 def _load_mark(path: str) -> Image.Image:
+    """Load the watermark once and keep it; it is resized from this copy for each image."""
     return Image.open(path).convert("RGBA")
 
 
@@ -96,6 +98,7 @@ def png_info() -> PngImagePlugin.PngInfo:
 
 
 def png_bytes(image: Image.Image) -> bytes:
+    """Encode ``image`` as PNG bytes with the TensorRoom metadata attached."""
     buf = io.BytesIO()
     image.save(buf, format="PNG", pnginfo=png_info())
     return buf.getvalue()

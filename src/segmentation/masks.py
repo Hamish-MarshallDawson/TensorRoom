@@ -23,8 +23,7 @@ segmenter and the image model:
 Why it is separate
 ------------------
 Keeping this free of model code means it can be unit-tested on any machine
-(see ``tests/test_masks.py``) and reused by the worker, the benchmark and,
-later, the furniture RAG flow.
+(see ``tests/test_masks.py``) and reused by the worker and the scripts.
 """
 
 from __future__ import annotations

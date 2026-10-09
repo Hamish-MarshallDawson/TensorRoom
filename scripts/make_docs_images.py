@@ -54,6 +54,7 @@ INK, PAPER, SIGNAL = (0, 0, 0), (255, 255, 255), (31, 31, 255)
 
 
 def _font(names: list[str], size: int):
+    """Load the first font in ``names`` that exists (Windows names first, then DejaVu on Linux), else Pillow's default."""
     for name in names:
         try:
             return ImageFont.truetype(name, size)
@@ -62,6 +63,7 @@ def _font(names: list[str], size: int):
     return ImageFont.load_default()
 
 
+# Fonts for the panel labels: monospace for tags and details, bold sans for captions.
 MONO = _font(["consolab.ttf", "DejaVuSansMono-Bold.ttf"], 22)
 HEAD = _font(["arialbd.ttf", "DejaVuSans-Bold.ttf"], 30)
 

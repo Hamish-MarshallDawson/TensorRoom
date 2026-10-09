@@ -11,8 +11,8 @@ Run it first, and again whenever something odd happens::
 
 It reports:
 
-* whether PyTorch is a CUDA build (the venv originally had ``+cpu``) and
-  whether it supports the RTX 5080 (Blackwell, compute capability 12.0,
+* whether PyTorch is a CUDA build (a CPU-only build reports no CUDA version)
+  and whether it supports the RTX 5080 (Blackwell, compute capability 12.0,
   needs CUDA 12.8 or newer);
 * total and free VRAM. The Windows desktop and open apps typically hold
   about 1.4 GB before TensorRoom starts;
@@ -64,7 +64,7 @@ def check_torch() -> bool:
         return False
     print(OK if torch.version.cuda else FAIL, f"torch {torch.__version__} (CUDA build: {torch.version.cuda})")
     if not torch.version.cuda:
-        print("       Reinstall a CUDA build, see the README section 'Room editing pipeline'.")
+        print("       Reinstall a CUDA build of PyTorch.")
         return False
     if not torch.cuda.is_available():
         print(FAIL, "CUDA build installed but no GPU visible. Check the NVIDIA driver.")
@@ -123,6 +123,7 @@ def check_files(cfg: dict) -> None:
 
 
 def probe_sysmem_fallback() -> None:
+    """Allocate slightly more VRAM than the card has, to see whether the driver quietly spills into system RAM."""
     import torch
 
     free, total = torch.cuda.mem_get_info()

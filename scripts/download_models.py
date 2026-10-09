@@ -47,7 +47,8 @@ def main() -> None:
     parser.add_argument("--only", choices=["qwen", "acc", "sam3", "grounded"], action="append", help="download only these (repeatable)")
     args = parser.parse_args()
 
-    cfg = load_config()  # Also applies paths.hf_cache_dir before huggingface_hub is imported.
+    # load_config() also applies paths.hf_cache_dir, which must happen before huggingface_hub is imported.
+    cfg = load_config()
     # By default fetch whichever segmentation backend config.yaml selects.
     seg_default = "grounded" if cfg["segmentation"].get("backend") == "grounded_sam" else "sam3"
     wanted = set(args.only or ["qwen", "acc", seg_default])

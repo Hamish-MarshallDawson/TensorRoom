@@ -4,9 +4,10 @@ Photo guardrails
 
 What this file does
 -------------------
-Checks every newly uploaded photo for people (or characters: cartoons,
-mascots, figures) before it is stored or edited. If the segmenter finds one
-above ``guardrails.min_score``, the photo is rejected and the web app sends
+Checks every newly uploaded photo for people before it is stored or edited.
+The phrases searched for come from ``guardrails.block_terms`` in config.yaml
+(the built-in fallback also covers cartoon characters). If the segmenter finds
+one above ``guardrails.min_score``, the photo is rejected and the web app sends
 the user back to the start with a warning.
 
 It reuses the segmenter that is already loaded (Grounding DINO + SAM, or
@@ -67,7 +68,12 @@ class GuardResult:
 
 
 def check_photo(manager, photo: Image.Image) -> GuardResult:
-    """Return whether ``photo`` may be edited, using the manager's segmenter."""
+    """
+    Return whether ``photo`` may be edited, using the manager's segmenter.
+
+    Runs the block-term search first. Only if someone is found does it run the
+    artwork search, so that people inside pictures can be let through.
+    """
     g = manager.cfg.get("guardrails") or {}
     if not g.get("enabled", True):
         return GuardResult(allowed=True)

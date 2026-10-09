@@ -1,8 +1,8 @@
 /*
   TensorRoom web app logic
   ========================
-  Plain JavaScript with no build step and no framework, so it loads fast on
-  any phone and anyone on the team can edit it.
+  Plain JavaScript with no build step and no framework, so it loads quickly on
+  any phone and is easy to change.
 
   Flow (each step is a panel in index.html):
     01 Capture  - camera or photo library. The photo is shrunk on the phone
@@ -248,6 +248,8 @@
     state.photoUrl = url;
   }
 
+  // Clear state from ``step`` onwards: 1 = the photo and its session, 2 = the
+  // detected objects and selection, 3 = the last result.
   function resetFrom(step) {
     if (step <= 1) { state.imageId = null; state.serverSize = null; setField("session", "—"); }
     if (step <= 2) { state.instances = []; state.selected.clear(); el.instanceList.innerHTML = ""; }

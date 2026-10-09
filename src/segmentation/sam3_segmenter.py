@@ -82,6 +82,8 @@ def dedupe(instances: list[Instance], iou_threshold: float) -> list[Instance]:
 
 
 class Sam3Segmenter:
+    """Text-prompted segmentation with SAM 3. Same interface as ``GroundedSegmenter``."""
+
     def __init__(self, cfg: dict):
         seg = cfg["segmentation"]
         self.model_id: str = seg["model_id"]
@@ -96,6 +98,7 @@ class Sam3Segmenter:
         self.processor = None
 
     def load(self) -> None:
+        """Download (if needed) and load SAM 3. Imported here so the module loads without transformers."""
         from transformers import Sam3Model, Sam3Processor
 
         self.processor = Sam3Processor.from_pretrained(self.model_id)
@@ -108,12 +111,14 @@ class Sam3Segmenter:
 
     @torch.inference_mode()
     def segment(self, image: Image.Image, terms: list[str]) -> list[Instance]:
+        """Return every match for ``terms`` in ``image``, with masks at the photo's original size."""
         if self.model is None:
             self.load()
         image = image.convert("RGB")
         orig_w, orig_h = image.size
 
         # Shrink large photos first; masks are scaled back to full size in post-processing.
+        # Vision features are computed once and reused for every phrase.
         scale = min(1.0, self.max_side / max(orig_w, orig_h))
         work = image if scale >= 1.0 else image.resize((round(orig_w * scale), round(orig_h * scale)), Image.LANCZOS)
 

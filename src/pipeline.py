@@ -42,6 +42,7 @@ class EditResult:
 
 
 def segment(manager: ModelManager, photo: Image.Image, terms: list[str]) -> tuple[list[Instance], dict[str, float]]:
+    """Find every object matching ``terms``. Returns the instances and the time the search took."""
     with manager.lock:
         t = time.perf_counter()
         manager.activate("segment")
@@ -57,6 +58,13 @@ def edit(
     quality: str = "preview",
     seed: int = 42,
 ) -> EditResult:
+    """
+    Edit the chosen objects in ``photo`` and paste the result back into it.
+
+    The chosen masks are combined, the crop around them is edited, and only the
+    pixels inside the (feathered) mask change. Timings and VRAM are recorded
+    along the way.
+    """
     e = manager.cfg["editor"]
     timings: dict[str, float] = {}
 

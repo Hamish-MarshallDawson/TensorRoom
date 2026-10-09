@@ -74,6 +74,7 @@ def main() -> None:
     print(f"Loaded: {load_times}  VRAM: {manager.vram_report()}")
 
     rows = []
+    # Segment each photo once, then time the edit for every (max_side, quality, repeat) combination.
     for photo_path in photos:
         photo = ImageOps.exif_transpose(Image.open(photo_path)).convert("RGB")
         instances, seg_t = pipeline.segment(manager, photo, args.terms.split(","))

@@ -34,7 +34,8 @@ python-preference = "only-managed"
 dev = ["pytest"]
 
 [tool.uv.sources]
-# QwenImage21Pipeline is merged into diffusers but not yet in a PyPI release (latest is 0.40).
+# QwenImage21Pipeline is merged into diffusers but was not in a PyPI release when this was written.
+# Switch to a released version once one includes it.
 diffusers = { git = "https://github.com/huggingface/diffusers" }
 # CUDA 13.0 builds of PyTorch for the RTX 5080 (Blackwell needs CUDA 12.8+). macOS keeps the PyPI build.
 torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]

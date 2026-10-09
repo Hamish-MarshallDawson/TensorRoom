@@ -21,8 +21,9 @@ Output goes to ``editor.quantised_dir`` (``models/qwen-image-2.1-quantised``).
 
 Why do it once
 --------------
-The full-precision checkpoint is 30.9 GB and this PC has 31 GB of RAM.
-Shrinking on every start-up would be slow and risks running out of memory.
+The full-precision checkpoint is about 31 GB, roughly as much as the system
+RAM of the PC it was developed on. Shrinking on every start-up would be slow
+and risks running out of memory.
 Each component is loaded straight onto the GPU and shrunk one at a time,
 with memory freed in between, to keep peak RAM low.
 
@@ -45,6 +46,7 @@ from src.config import load_config, repo_path  # noqa: E402
 
 
 def _free() -> None:
+    """Release a component's memory before loading the next one, so peak usage stays low."""
     import torch
 
     gc.collect()

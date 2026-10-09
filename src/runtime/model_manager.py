@@ -50,12 +50,14 @@ def make_segmenter(cfg: dict):
 
 
 class ModelManager:
+    """Owns the segmenter and the editor, and moves them on and off the GPU between stages."""
+
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.segmenter = make_segmenter(cfg)
         self.editor = RoomEditor(cfg)
         self.lock = threading.Lock()  # One GPU job at a time
-        self._stage: str | None = None
+        self._stage: str | None = None  # Last stage passed to activate(); None until the first call
 
     def load_all(self, warmup: bool = False) -> dict[str, float]:
         """Load both models up front and return how long each took, in seconds."""
@@ -90,6 +92,7 @@ class ModelManager:
         self._stage = stage
 
     def _park_segmenter(self) -> None:
+        """Move the segmenter to system RAM, if the config asks for that, to free VRAM for the image model."""
         if self.cfg["segmentation"].get("offload_during_edit", True):
             self.segmenter.to("cpu")
             free_gpu_cache()
@@ -112,6 +115,7 @@ class ModelManager:
 
 
 def free_gpu_cache() -> None:
+    """Run Python's garbage collector and return cached, unused GPU memory to the driver."""
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

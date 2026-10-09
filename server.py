@@ -4,9 +4,10 @@ TensorRoom GPU worker
 
 What this file does
 -------------------
-A small FastAPI server that loads SAM 3 and Qwen-Image-2.1 once, keeps them
-warm, and runs one GPU job at a time (optimisation step 6). It also serves
-the mobile web app in ``web/`` at ``/``, so a phone only needs one address.
+A small FastAPI server that loads the segmenter (SAM 3, or Grounding DINO + SAM
+while ``segmentation.backend`` is ``grounded_sam``) and Qwen-Image-2.1 once,
+keeps them warm, and runs one GPU job at a time (optimisation step 6). It also
+serves the mobile web app in ``web/`` at ``/``, so a phone only needs one address.
 
 Start it with::
 
@@ -26,8 +27,8 @@ Endpoints
 ``POST /segment``       upload a photo (or reuse ``image_id``) plus comma-separated terms;
                         returns the objects found, each with a small transparent mask PNG
                         the web app uses for tap-to-select, plus a preview overlay.
-                        New uploads showing a person or character are rejected
-                        with 422 and ``detail.code == "guardrail_person"`` (src/guardrails.py)
+                        New uploads showing a person are rejected with 422 and
+                        ``detail.code == "guardrail_person"`` (src/guardrails.py)
 ``POST /edit``          edit the chosen objects of a stored photo; the result is stored
                         under a new ``image_id`` so edits can be chained
 ``GET  /image/{id}``    full-resolution PNG of a stored photo (edit results come
@@ -101,6 +102,7 @@ sessions = SessionStore(SERVER_CFG.get("max_sessions", 8))
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Load and warm up both models before the first request is served."""
     global manager
     manager = ModelManager(CFG)
     manager.load_all(warmup=SERVER_CFG.get("warmup", True))
@@ -136,6 +138,7 @@ def _mask_png_b64(mask: np.ndarray, max_side: int) -> str:
 
 @app.get("/health")
 def health():
+    """Readiness, VRAM use, the suggestion vocabulary and the editor's quantisation mode, for the web app's status bar."""
     return {
         "ready": manager is not None,
         "vram_gb": ModelManager.vram_report(),
@@ -150,6 +153,7 @@ def segment(
     image: UploadFile | None = File(None),
     image_id: str | None = Form(None),
 ):
+    """Find the objects named in ``terms`` in a new upload (guard-checked) or in a stored photo."""
     guard_seconds = 0.0
     if image is not None:
         # exif_transpose: phone photos are often stored sideways with a rotation tag.
@@ -208,6 +212,7 @@ class EditRequest(BaseModel):
 
 @app.post("/edit")
 def edit(req: EditRequest):
+    """Edit the chosen objects of a stored photo and return the watermarked result as a new ``image_id``."""
     if req.quality not in ("preview", "final"):
         raise HTTPException(400, "quality must be 'preview' or 'final'.")
     session = sessions.get(req.image_id)
@@ -222,6 +227,7 @@ def edit(req: EditRequest):
     marked = branding.watermark(result.image)
     new_id = sessions.add(Session(image=result.image, export=marked))
 
+    # Keep a copy on disk too, so results survive a restart of the worker.
     out_dir = repo_path(CFG["paths"]["outputs_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     branding.save_png(marked, out_dir / f"{new_id}.png")
@@ -238,6 +244,7 @@ def edit(req: EditRequest):
 
 @app.get("/image/{image_id}")
 def full_image(image_id: str):
+    """Full-resolution PNG of a stored photo; edit results come back watermarked."""
     session = sessions.get(image_id)
     if session.export is not None:
         return Response(branding.png_bytes(session.export), media_type="image/png")

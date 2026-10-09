@@ -48,6 +48,8 @@ from src.segmentation.sam3_segmenter import Instance, dedupe, expand_terms
 
 
 class GroundedSegmenter:
+    """Text-prompted segmentation with Grounding DINO (boxes) + SAM (masks). Same interface as ``Sam3Segmenter``."""
+
     def __init__(self, cfg: dict):
         seg = cfg["segmentation"]
         g = seg.get("grounded_sam") or {}
@@ -62,6 +64,7 @@ class GroundedSegmenter:
         self.detector = self.det_processor = self.sam = self.sam_processor = None
 
     def load(self) -> None:
+        """Download (if needed) and load both the detector and SAM."""
         from transformers import AutoProcessor, GroundingDinoForObjectDetection, SamModel, SamProcessor
 
         self.det_processor = AutoProcessor.from_pretrained(self.detector_id)
